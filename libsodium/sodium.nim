@@ -1320,7 +1320,7 @@ proc crypto_secretstream_xchacha20poly1305_tag_message*():cuchar {.sodium_import
 proc crypto_secretstream_xchacha20poly1305_tag_push*():cuchar {.sodium_import.}
 proc crypto_secretstream_xchacha20poly1305_tag_rekey*():cuchar {.sodium_import.}
 proc crypto_secretstream_xchacha20poly1305_tag_final*():cuchar {.sodium_import.}
-  
+
 
 proc crypto_secretstream_xchacha20poly1305_init_push(
   state: ptr cuchar,
@@ -1427,3 +1427,50 @@ proc pull*(state: SecretStreamXChaCha20Poly1305PullState, cipher, ad: string): (
       c_adlen,
     )
   check_rc rc
+
+#[
+int crypto_aead_xchacha20poly1305_ietf_encrypt(unsigned char *c,
+                                               unsigned long long *clen_p,
+                                               const unsigned char *m,
+                                               unsigned long long mlen,
+                                               const unsigned char *ad,
+                                               unsigned long long adlen,
+                                               const unsigned char *nsec,
+                                               const unsigned char *npub,
+                                               const unsigned char *k);
+]#
+
+proc crypto_aead_xchacha20poly1305_ietf_encrypt(
+  c: ptr cuchar,
+  clen_p: ptr culonglong,
+  m: ptr cuchar,
+  mlen: culonglong,
+  ad: ptr cuchar,
+  adlen: culonglong,
+  nsec: ptr cuchar,
+  npub: ptr cuchar,
+  k: ptr cuchar
+): cint {.sodium_import.}
+
+proc crypto_aead_xchacha20poly1305_ietf_encrypt*(
+  m: string,
+  k: string,
+  npub: string,
+  ad: string
+): string =
+    var
+      clen = culonglong(crypto_aead_xchacha20poly1305_ietf_abytes() + m.len)
+      c = newSeq[cuchar](clen)
+      rc = crypto_aead_xchacha20poly1305_ietf_encrypt(
+        cast[ptr cuchar](addr c[0]),
+        cast[ptr culonglong](addr clen),
+        cast[ptr cuchar](m[0].unsafeAddr),
+        m.len.culonglong,
+        cast[ptr cuchar](ad[0].unsafeAddr),
+        ad.len.culonglong,
+        nil,
+        cast[ptr cuchar](npub[0].unsafeAddr),
+        cast[ptr cuchar](k[0].unsafeAddr))
+    checkrc rc
+    # we may have ended up with less chars that we had space for, which is why clen is a ptr that sodium can change.
+    result = cast[string](c).substr(0, clen.int)
