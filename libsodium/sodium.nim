@@ -1429,6 +1429,8 @@ proc pull*(state: SecretStreamXChaCha20Poly1305PullState, cipher, ad: string): (
   check_rc rc
 
 #[
+// https://libsodium.gitbook.io/doc/secret-key_cryptography/aead/chacha20-poly1305/xchacha20-poly1305_construction
+
 int crypto_aead_xchacha20poly1305_ietf_encrypt(unsigned char *c,
                                                unsigned long long *clen_p,
                                                const unsigned char *m,
@@ -1473,4 +1475,54 @@ proc crypto_aead_xchacha20poly1305_ietf_encrypt*(
         cast[ptr cuchar](k[0].unsafeAddr))
     checkrc rc
     # we may have ended up with less chars that we had space for, which is why clen is a ptr that sodium can change.
-    result = cast[string](c).substr(0, clen.int)
+    result = cast[string](c).substr(0, clen.int-1)
+
+#[
+
+// https://libsodium.gitbook.io/doc/secret-key_cryptography/aead/chacha20-poly1305/xchacha20-poly1305_construction
+
+int crypto_aead_xchacha20poly1305_ietf_decrypt(unsigned char *m,
+                                               unsigned long long *mlen_p,
+                                               unsigned char *nsec,
+                                               const unsigned char *c,
+                                               unsigned long long clen,
+                                               const unsigned char *ad,
+                                               unsigned long long adlen,
+                                               const unsigned char *npub,
+                                               const unsigned char *k);
+]#
+
+proc crypto_aead_xchacha20poly1305_ietf_decrypt(
+  m: ptr cuchar,
+  mlen_p: ptr culonglong,
+  nsec: ptr cuchar,
+  c: ptr cuchar,
+  clen: culonglong,
+  ad: ptr cuchar,
+  adlen: culonglong,
+  npub: ptr cuchar,
+  k: ptr cuchar
+): cint {.sodium_import.}
+
+proc crypto_aead_xchacha20poly1305_ietf_decrypt*(
+  c: string,
+  k: string,
+  npub: string,
+  ad: string
+): string =
+    var
+      m = newSeq[cuchar](c.len - crypto_aead_xchacha20poly1305_ietf_abytes())
+      mlen = m.len.culonglong
+    let rc = crypto_aead_xchacha20poly1305_ietf_decrypt(
+      cast[ptr cuchar](addr m[0]),
+      addr mlen,
+      nil,
+      cast[ptr cuchar](unsafeAddr c[0]),
+      c.len.culonglong,
+      cast[ptr cuchar](unsafeAddr ad[0]),
+      ad.len.culonglong,
+      cast[ptr cuchar](unsafeAddr npub[0]),
+      cast[ptr cuchar](unsafeAddr k[0])
+    )
+    check_rc rc
+    result = cast[string](m).substr(0, mlen.int-1)
